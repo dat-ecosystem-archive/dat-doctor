@@ -1,0 +1,15 @@
+{
+  "name": "dat-doctor",
+  "version": "0.0.1",
+  "description": "Dat network doctor extension",
+  "main": "index.js",
+  "author": "mafintosh",
+  "license": "BSD-3-Clause",
+  "dependencies": {
+    "crypto": "0.0.3",
+    "datland-swarm-defaults": "^1.0.2",
+    "discovery-swarm": "^4.0.2",
+    "dns-discovery": "^5.3.4",
+    "pump": "^1.0.1"
+  }
+}
