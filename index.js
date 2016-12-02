@@ -59,7 +59,11 @@ module.exports = function (args) {
       console.log('')
       console.log('To test p2p connectivity login to another computer and run:')
       console.log('')
-      console.log('  dat doctor ' + id)
+      if (process.argv[1].slice(process.argv[1].lastIndexOf('/') + 1) === 'dat-doctor') {
+        console.log('  dat-doctor ' + id)
+      } else {
+        console.log('  dat doctor ' + id)
+      }
       console.log('')
       console.log('Waiting for incoming connections... (local port: %d)', sw.address().port)
       console.log('')
