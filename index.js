@@ -36,6 +36,9 @@ module.exports = function (opts) {
       hash: false,
       announce: false
     })
+    sw.on('error', function () {
+      sw.listen(0)
+    })
     sw.listen(port)
     sw.on('listening', function () {
       log('[info] Starting phase one (Public Server)')
