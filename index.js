@@ -6,6 +6,7 @@ var defaults = require('datland-swarm-defaults')()
 var dns = require('dns')
 var thunky = require('thunky')
 var fmt = require('util').format
+var EOL = require('os').EOL
 
 var doctor = 'doctor1.publicbits.org'
 
@@ -14,7 +15,7 @@ module.exports = function (opts) {
   var id = typeof opts.id === 'string' ? opts.id : crypto.randomBytes(32).toString('hex')
   var out = opts.out || process.stderr
   var log = function () {
-    out.write(fmt.apply(null, arguments) + '\n')
+    out.write(fmt.apply(null, arguments) + EOL)
   }
   
   dns.lookup(doctor, function (err, address, family) {
