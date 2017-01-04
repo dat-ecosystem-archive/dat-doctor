@@ -14,6 +14,7 @@
     "discovery-swarm": "^4.0.2",
     "dns-discovery": "^5.3.4",
     "minimist": "^1.2.0",
-    "pump": "^1.0.1"
+    "pump": "^1.0.1",
+    "thunky": "^1.0.1"
   }
 }
