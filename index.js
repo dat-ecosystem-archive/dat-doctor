@@ -8,7 +8,9 @@ var thunky = require('thunky')
 
 var doctor = 'doctor1.publicbits.org'
 
-module.exports = function (args) {
+module.exports = function (opts) {
+  var port = typeof opts.port === 'number' ? opts.port : 3282
+  var id = typeof opts.id === 'string' ? opts.id : crypto.randomBytes(32).toString('hex')
   
   dns.lookup(doctor, function (err, address, family) {
     if (err) {
@@ -27,7 +29,7 @@ module.exports = function (args) {
       hash: false,
       announce: false
     })
-    sw.listen(typeof args.port === 'number' ? args.port : 3282)
+    sw.listen(port)
     sw.on('listening', function () {
       console.log('[info] Starting phase one (Public Server)')
       sw.join('dat-doctor-public-peer')
@@ -71,7 +73,6 @@ module.exports = function (args) {
     })
 
     var tick = 0
-    var id = typeof args._[0] === 'string' ? args._[0] : crypto.randomBytes(32).toString('hex')
     var sw = swarm({
       dns: {
         servers: defaults.dns.server
@@ -81,7 +82,7 @@ module.exports = function (args) {
     sw.on('error', function () {
       sw.listen(0)
     })
-    sw.listen(typeof args.port === 'number' ? args.port : 3282)
+    sw.listen(port)
     sw.on('listening', function () {
       client.whoami(function (err, me) {
         if (err) return console.error('Could not detect public ip / port')
