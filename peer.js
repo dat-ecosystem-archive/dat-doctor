@@ -2,13 +2,10 @@
 
 // this is the peer at 'doctor1.publicbits.org'
 
-var dnsDiscovery = require('dns-discovery')
 var swarm = require('discovery-swarm')
 var crypto = require('crypto')
 var pump = require('pump')
 var defaults = require('datland-swarm-defaults')()
-
-var tick = 0
 
 var sw = swarm({
   dns: {

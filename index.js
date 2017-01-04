@@ -17,7 +17,7 @@ module.exports = function (opts) {
   var log = function () {
     out.write(fmt.apply(null, arguments) + EOL)
   }
-  
+
   dns.lookup(doctor, function (err, address, family) {
     if (err) {
       log('Could not resolve', doctor, 'skipping...')
@@ -25,8 +25,9 @@ module.exports = function (opts) {
     }
     startPublicPeer(address)
   })
-  
-  function startPublicPeer(address) {
+
+  function startPublicPeer (address) {
+    var connected = false
     var sw = swarm({
       dns: {
         servers: defaults.dns.server
@@ -72,8 +73,8 @@ module.exports = function (opts) {
       })
     })
   }
-  
-  function startP2P() {
+
+  function startP2P () {
     var client = dnsDiscovery({
       servers: defaults.dns.server
     })
