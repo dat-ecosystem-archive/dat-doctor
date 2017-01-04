@@ -11,7 +11,8 @@ var sw = swarm({
   dns: {
     servers: defaults.dns.server
   },
-  hash: false
+  hash: false,
+  dht: false
 })
 
 sw.on('error', function () {

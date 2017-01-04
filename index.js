@@ -21,7 +21,7 @@ module.exports = function (opts) {
   dns.lookup(doctor, function (err, address, family) {
     if (err) {
       log('Could not resolve', doctor, 'skipping...')
-      return startP2P()
+      return startP2PDNS()
     }
     startPublicPeer(address)
   })
@@ -33,16 +33,16 @@ module.exports = function (opts) {
         servers: defaults.dns.server
       },
       whitelist: [address],
-      hash: false,
-      announce: false
+      dht: false,
+      hash: false
     })
     sw.on('error', function () {
       sw.listen(0)
     })
-    sw.listen(port)
+    sw.listen(8765)
     sw.on('listening', function () {
       log('[info] Starting phase one (Public Server)')
-      sw.join('dat-doctor-public-peer')
+      sw.join('dat-doctor-public-peer', {announce: false})
       sw.on('connecting', function (peer) {
         log('[info] Trying to connect to doctor, %s:%d', peer.host, peer.port)
       })
@@ -65,19 +65,20 @@ module.exports = function (opts) {
       log('[info] Attempting connection to doctor, %s', doctor)
       setTimeout(function () {
         if (connected) return
+        log('[info] Connection timeout, fail!')
         destroy()
       }, 10000)
       var destroy = thunky(function (cb) {
         sw.destroy(function () {
-          log('[info] End of phase one (Public Server), moving on to phase two (Peer to Peer)')
-          startP2P()
+          log('[info] End of phase one (Public Server), moving on to phase two (Peer to Peer via DNS)')
+          startP2PDNS()
           cb()
         })
       })
     })
   }
 
-  function startP2P () {
+  function startP2PDNS () {
     var client = dnsDiscovery({
       servers: defaults.dns.server
     })
@@ -86,7 +87,8 @@ module.exports = function (opts) {
     var sw = swarm({
       dns: {
         servers: defaults.dns.server
-      }
+      },
+      dht: false
     })
 
     sw.on('error', function () {
@@ -120,7 +122,7 @@ module.exports = function (opts) {
           connection.on('data', function (remote) {
             buf += remote
             if (buf.length === data.length) {
-              log('[%s] Remote peer echoed expected data back', prefix)
+              log('[%s] Remote peer echoed expected data back, success!', prefix)
             }
           })
           pump(connection, connection, function () {
