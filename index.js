@@ -133,11 +133,7 @@ module.exports = function (opts) {
         log('')
         log('To test p2p connectivity login to another computer and run:')
         log('')
-        if (process.argv[1].slice(process.argv[1].lastIndexOf('/') + 1) === 'dat-doctor') {
-          log('  dat-doctor ' + id)
-        } else {
-          log('  dat doctor ' + id)
-        }
+        log('  dat doctor ' + id)
         log('')
         log('Waiting for incoming connections... (local port: %d)', sw.address().port)
         log('')
