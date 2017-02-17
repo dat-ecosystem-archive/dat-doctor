@@ -7,6 +7,7 @@ var dns = require('dns')
 var thunky = require('thunky')
 var fmt = require('util').format
 var EOL = require('os').EOL
+var debug = require('debug')('dat-doctor')
 
 var doctor = 'doctor1.publicbits.org'
 
@@ -18,60 +19,107 @@ module.exports = function (opts) {
     out.write(fmt.apply(null, arguments) + EOL)
   }
 
+  debug('[info] Looking up public server address')
   dns.lookup(doctor, function (err, address, family) {
     if (err) {
-      log('Could not resolve', doctor, 'skipping...')
+      log('[error] Could not resolve', doctor, 'skipping...')
       return startP2PDNS()
     }
-    startPublicPeer(address)
+    log('[info] Testing connection to public peer')
+    startPublicPeer(address, function (err) {
+      if (err) return log(err)
+      log('')
+      log('[info] End of phase one (Public Server), moving on to phase two (Peer to Peer via DNS)')
+      log('')
+      startP2PDNS()
+    })
   })
 
-  function startPublicPeer (address) {
+  function startPublicPeer (address, cb) {
+    var tests = [
+      {
+        name: 'utp only',
+        utp: true,
+        tcp: false,
+        port: 3282
+      },
+      {
+        name: 'tcp only',
+        utp: false,
+        tcp: true,
+        port: 3283
+      }
+    ]
+    var pending = tests.length
+    tests.forEach(function (test) {
+      test.address = address
+      runPublicPeerTest(test, function (err) {
+        if (err) return cb(err)
+        if (!--pending) cb()
+      })
+    })
+  }
+
+  function runPublicPeerTest (opts, cb) {
+    var address = opts.address
+    var name = opts.name || 'test'
+    var port = opts.port || 3282
+
     var connected = false
+    var dataEcho = false
+
     var sw = swarm({
       dns: {
         servers: defaults.dns.server
       },
       whitelist: [address],
       dht: false,
-      hash: false
+      hash: false,
+      utp: opts.utp,
+      tcp: opts.tcp
     })
+
     sw.on('error', function () {
+      if (port === 3282) log('[error] Default Dat port did not work (3282), using random port')
       sw.listen(0)
     })
-    sw.listen(8765)
+    sw.listen(port)
+
     sw.on('listening', function () {
-      log('[info] Starting phase one (Public Server)')
       sw.join('dat-doctor-public-peer', {announce: false})
       sw.on('connecting', function (peer) {
-        log('[info] Trying to connect to doctor, %s:%d', peer.host, peer.port)
+        debug('Trying to connect to doctor, %s:%d', peer.host, peer.port)
       })
       sw.on('peer', function (peer) {
-        log('[info] Discovered doctor, %s:%d', peer.host, peer.port)
+        debug('Discovered doctor, %s:%d', peer.host, peer.port)
       })
       sw.on('connection', function (connection) {
         connected = true
-        log('[info] Connection established to doctor')
+        debug('Connection established to doctor')
         connection.setEncoding('utf-8')
         connection.on('data', function (remote) {
-          log('[info] Sending data back to doctor %s', remote.toString())
-          log('[info] Phase one success!')
+          dataEcho = true
+          log(`[info] ${name.toUpperCase()} - success!`)
         })
         pump(connection, connection, function () {
-          log('[info] Connection closed')
-          destroy()
+          debug('Connection closed')
+          destroy(cb)
         })
       })
-      log('[info] Attempting connection to doctor, %s', doctor)
+      debug('Attempting connection to doctor, %s', doctor)
       setTimeout(function () {
         if (connected) return
-        log('[info] Connection timeout, fail!')
-        destroy()
+        log('[error] FAIL - Connection timeout, fail.')
+        destroy(cb)
       }, 10000)
       var destroy = thunky(function (cb) {
         sw.destroy(function () {
-          log('[info] End of phase one (Public Server), moving on to phase two (Peer to Peer via DNS)')
-          startP2PDNS()
+          if (!connected) {
+            log('[error] FAIL - Unable to connect to public server.')
+          }
+          if (!dataEcho) {
+            log('[error] FAIL - Data was not echoed back from public server.')
+          }
           cb()
         })
       })
@@ -97,18 +145,17 @@ module.exports = function (opts) {
     sw.listen(port)
     sw.on('listening', function () {
       client.whoami(function (err, me) {
-        if (err) return log('Could not detect public ip / port')
-        log('Public IP: ' + me.host)
-        log('Your public port was ' + (me.port ? 'consistent' : 'inconsistent') + ' across remote multiple hosts')
-        if (!me.port) log('Looks like you are behind a symmetric nat. Try enabling upnp.')
-        else log('Looks like you can accept incoming p2p connections.')
+        if (err) return log('[error] Could not detect public ip / port')
+        log('[info] Public IP: ' + me.host)
+        log('[info] Your public port was ' + (me.port ? 'consistent' : 'inconsistent') + ' across remote multiple hosts')
+        if (!me.port) log('[error] Looks like you are behind a symmetric nat. Try enabling upnp.')
         client.destroy()
         sw.join(id)
         sw.on('connecting', function (peer) {
           log('[info] Trying to connect to %s:%d', peer.host, peer.port)
         })
         sw.on('peer', function (peer) {
-          log('[info] Discovered %s:%d', peer.host, peer.port)
+          debug('Discovered %s:%d', peer.host, peer.port)
         })
         sw.on('connection', function (connection) {
           var num = tick++
