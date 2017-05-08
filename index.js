@@ -157,23 +157,23 @@ module.exports = function (opts) {
         sw.on('peer', function (peer) {
           debug('Discovered %s:%d', peer.host, peer.port)
         })
-        sw.on('connection', function (connection) {
+        sw.on('connection', function (connection, info) {
           var num = tick++
           var prefix = '0000'.slice(0, -num.toString().length) + num
 
           var data = crypto.randomBytes(16).toString('hex')
-          log('[%s] Connection established to remote peer', prefix)
+          log('[%s-%s] Connection established to remote peer', prefix, info.type)
           var buf = ''
           connection.setEncoding('utf-8')
           connection.write(data)
           connection.on('data', function (remote) {
             buf += remote
             if (buf.length === data.length) {
-              log('[%s] Remote peer echoed expected data back, success!', prefix)
+              log('[%s-%s] Remote peer echoed expected data back, success!', prefix, info.type)
             }
           })
           pump(connection, connection, function () {
-            log('[%s] Connected closed', prefix)
+            log('[%s-%s] Connected closed', prefix, info.type)
           })
         })
 
