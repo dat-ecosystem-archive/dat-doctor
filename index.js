@@ -68,6 +68,17 @@ module.exports = function (opts) {
     var connected = false
     var dataEcho = false
 
+    if (opts.utp && !opts.tcp) {
+      // Check UTP support for utp only
+      // TODO: discovery swarm fails hard if no server works
+      try {
+        require('utp-native')
+      } catch (err) {
+        log('[error] FAIL - unable to load utp-native, utp connections will not work')
+        return cb()
+      }
+    }
+
     var sw = swarm({
       dns: {
         servers: defaults.dns.server
