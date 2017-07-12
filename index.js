@@ -141,6 +141,10 @@ module.exports = function (opts) {
     var client = dnsDiscovery({
       servers: defaults.dns.server
     })
+    
+    client.on('error', function (err) {
+      log('[info] dns-discovery emitted ' + err.message)
+    })
 
     var tick = 0
     var sw = swarm({
