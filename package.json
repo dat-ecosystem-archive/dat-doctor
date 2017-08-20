@@ -10,7 +10,6 @@
   "license": "BSD-3-Clause",
   "repository": "joehand/dat-doctor",
   "dependencies": {
-    "crypto": "0.0.3",
     "datland-swarm-defaults": "^1.0.2",
     "debug": "^2.6.1",
     "discovery-swarm": "^4.0.2",
