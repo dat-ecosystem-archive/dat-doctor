@@ -6,15 +6,19 @@
   "bin": {
     "dat-doctor": "cli.js"
   },
-  "author": "mafintosh",
+  "author": "Dat Project",
   "license": "BSD-3-Clause",
-  "repository": "joehand/dat-doctor",
+  "repository": "datproject/dat-doctor",
   "dependencies": {
-    "datland-swarm-defaults": "^1.0.2",
+    "chalk": "^2.3.2",
+    "dat-swarm-defaults": "^1.0.0",
     "debug": "^2.6.1",
     "discovery-swarm": "^4.0.2",
     "dns-discovery": "^5.3.4",
+    "figures": "^2.0.0",
     "minimist": "^1.2.0",
+    "neat-log": "^2.1.1",
+    "neat-tasks": "^1.0.0",
     "pump": "^1.0.1",
     "thunky": "^1.0.1"
   }
