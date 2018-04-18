@@ -16,6 +16,7 @@
     "discovery-swarm": "^4.0.2",
     "dns-discovery": "^5.3.4",
     "figures": "^2.0.0",
+    "menu-string": "^1.2.0",
     "minimist": "^1.2.0",
     "neat-log": "^2.1.1",
     "neat-tasks": "^1.0.0",
