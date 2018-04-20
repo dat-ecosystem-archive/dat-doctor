@@ -34,12 +34,12 @@ module.exports = function (opts) {
       }
     },
     {
-      title: 'Pinging the Dat Doctor',
-      task: dnsLookupTask
-    },
-    {
       title: 'Checking Dat Native Module Installation',
       task: nativeModuleTask
+    },
+    {
+      title: 'Pinging the Dat Doctor',
+      task: dnsLookupTask
     },
     {
       title: 'Checking Dat Public Connections via TCP',
@@ -60,28 +60,59 @@ module.exports = function (opts) {
         if (doctorAddress) return cb()
         cb(`Skipping... unable to reach ${DOCTOR_URL}`)
       }
-    },
-    {
-      title: 'Starting optional peer-to-peer test',
-      task: function (state, bus, done) {
-        done('todo')
-      }
     }
   ]
 
-  var runTasks = neatTasks(tasks, function () {
-    process.exit(0)
-  })
-  var neat = neatLog([headerOutput, versionsOutput, runTasks.view])
+  var views = [headerOutput, versionsOutput, menuView]
+  var neat = neatLog(views)
   neat.use(getVersions)
-  neat.use(runTasks.use)
-  // neat.input.on('update', function () {
-  //   neat.render()
-  // })
 
+  var menu = Menu([
+    'Basic Tests (Checks your Dat installation and network setup)',
+    'Peer-to-Peer Test (Debug connections between two computers)'
+  ])
+  neat.use(function (state, bus) {
+    bus.emit('render')
+
+    neat.input.on('down', function () {
+      menu.down()
+      bus.render()
+    })
+    neat.input.on('up', function () {
+      menu.up()
+      bus.render()
+    })
+    neat.input.on('enter', function () {
+      state.selected = menu.selected()
+      bus.render()
+      startTests(state.selected)
+    })
+  })
+
+  function startTests (selected) {
+    if (selected.index === 0) {
+      var runTasks = neatTasks(tasks, function () {
+        process.exit(0)
+      })
+      // views.pop() // remove menu view
+      views.push(runTasks.view)
+      neat.use(runTasks.use)
+    } else {
+      console.error(`\n\n${chalk.bold.blue('TODO')}`)
+      process.exit(1)
+    }
+  }
 
   function headerOutput (state) {
     return `Welcome to ${chalk.green('Dat')} Doctor!\n`
+  }
+
+  function menuView (state) {
+    if (state.selected) return `Running ${state.selected.text}`
+    return output(`
+      Which tests would you like to run?
+      ${menu.toString()}
+    `)
   }
 
   function versionsOutput (state) {
