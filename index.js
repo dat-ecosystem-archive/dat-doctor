@@ -2,7 +2,7 @@ var dnsDiscovery = require('dns-discovery')
 var swarm = require('discovery-swarm')
 var crypto = require('crypto')
 var pump = require('pump')
-var defaults = require('datland-swarm-defaults')()
+var defaults = require('dat-swarm-defaults')()
 var dns = require('dns')
 var thunky = require('thunky')
 var fmt = require('util').format
@@ -141,7 +141,7 @@ module.exports = function (opts) {
     var client = dnsDiscovery({
       servers: defaults.dns.server
     })
-    
+
     client.on('error', function (err) {
       log('[info] dns-discovery emitted ' + err.message)
     })
