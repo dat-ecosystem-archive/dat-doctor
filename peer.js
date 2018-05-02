@@ -5,7 +5,7 @@
 var swarm = require('discovery-swarm')
 var crypto = require('crypto')
 var pump = require('pump')
-var defaults = require('datland-swarm-defaults')()
+var defaults = require('dat-swarm-defaults')()
 
 var sw = swarm({
   dns: {
