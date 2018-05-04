@@ -1,6 +1,6 @@
 {
   "name": "dat-doctor",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "description": "Dat network doctor extension",
   "main": "index.js",
   "bin": {
@@ -11,7 +11,7 @@
   "repository": "datproject/dat-doctor",
   "dependencies": {
     "chalk": "^2.3.2",
-    "dat-swarm-defaults": "^1.0.0",
+    "dat-swarm-defaults": "^1.0.1",
     "debug": "^2.6.1",
     "discovery-swarm": "^4.0.2",
     "dns-discovery": "^5.3.4",
