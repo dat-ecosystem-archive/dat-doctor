@@ -109,10 +109,6 @@ module.exports = function (opts) {
           views.push(function () { return '\n' })
           bus.render()
 
-          console.error('TODO - almost there!')
-          process.exit(1)
-          // TODO
-
           state.id = opts.id
           state.existingTest = opts.existingTest
           peerTest(state, bus, views)
