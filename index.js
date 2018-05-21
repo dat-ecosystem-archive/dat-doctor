@@ -1,205 +1,176 @@
-var dnsDiscovery = require('dns-discovery')
-var swarm = require('discovery-swarm')
+var exec = require('child_process').exec
 var crypto = require('crypto')
-var pump = require('pump')
-var defaults = require('dat-swarm-defaults')()
-var dns = require('dns')
-var thunky = require('thunky')
-var fmt = require('util').format
-var EOL = require('os').EOL
+var os = require('os')
+var neatLog = require('neat-log')
+var output = require('neat-log/output')
+var neatTasks = require('neat-tasks')
+var chalk = require('chalk')
+var Menu = require('menu-string')
 var debug = require('debug')('dat-doctor')
+var defaultTasks = require('./lib/tasks-default')
+var peerTasks = require('./lib/tasks-peer')
+var peerTest = require('./lib/peer-test')
 
-var doctor = 'doctor1.publicbits.org'
+var NODE_VER = process.version
+var DOCTOR_VER = require('./package.json').version
+var DAT_PROCESS = process.title === 'dat'
 
 module.exports = function (opts) {
-  var port = typeof opts.port === 'number' ? opts.port : 3282
-  var id = typeof opts.id === 'string' ? opts.id : crypto.randomBytes(32).toString('hex')
-  var out = opts.out || process.stderr
-  var log = function () {
-    out.write(fmt.apply(null, arguments) + EOL)
-  }
+  if (!opts) opts = {}
+  opts.peerId = opts.peerId || null
+  opts.port = typeof opts.port === 'number' ? opts.port : 3282
 
-  debug('[info] Looking up public server address')
-  dns.lookup(doctor, function (err, address, family) {
-    if (err) {
-      log('[error] Could not resolve', doctor, 'skipping...')
-      return startP2PDNS()
-    }
-    log('[info] Testing connection to public peer')
-    startPublicPeer(address, function (err) {
-      if (err) return log(err)
-      log('')
-      log('[info] End of phase one (Public Server), moving on to phase two (Peer to Peer via DNS)')
-      log('')
-      startP2PDNS()
+  var views = [headerOutput, versionsOutput, menuView]
+  var neat = neatLog(views)
+  neat.use(getVersions)
+
+  if (opts.peerId) return runP2P() // run p2p tests right away
+
+  var menu = Menu([
+    'Basic Tests (Checks your Dat installation and network setup)',
+    'Peer-to-Peer Test (Debug connections between two computers)'
+  ])
+  neat.use(function (state) {
+    state.opts = opts
+    state.port = opts.port
+  })
+  neat.use(function (state, bus) {
+    bus.emit('render')
+
+    neat.input.on('down', function () {
+      menu.down()
+      bus.render()
+    })
+    neat.input.on('up', function () {
+      menu.up()
+      bus.render()
+    })
+    neat.input.once('enter', function () {
+      state.selected = menu.selected()
+      bus.render()
+      startTests(state.selected)
     })
   })
 
-  function startPublicPeer (address, cb) {
-    var tests = [
-      {
-        name: 'utp only',
-        utp: true,
-        tcp: false,
-        port: 3282
-      },
-      {
-        name: 'tcp only',
-        utp: false,
-        tcp: true,
-        port: 3283
-      }
-    ]
-    var pending = tests.length
-    tests.forEach(function (test) {
-      test.address = address
-      runPublicPeerTest(test, function (err) {
-        if (err) return cb(err)
-        if (!--pending) cb()
+  function startTests (selected) {
+    if (selected.index === 0) return runBasic()
+    else runP2P()
+  }
+
+  function runBasic () {
+    var runTasks = neatTasks(defaultTasks(opts))
+    views.push(runTasks.view)
+    neat.use(runTasks.use)
+    neat.use(function (state, bus) {
+      bus.once('done', function () {
+        var testCountMsg = output(`
+          ${chalk.bold(state.pass)} of ${chalk.bold(state.totalCount)} tests passed
+        `)
+        console.log('\n')
+        if (state.fail === 0) {
+          console.log(output(`
+            ${chalk.bold.greenBright('SUCCESS!')}
+            ${testCountMsg}
+            Use Peer-to-Peer tests to check direct connections between two computers.
+          `))
+          process.exit(0)
+        }
+        console.log(output(`
+          ${chalk.bold.redBright('FAIL')}
+          ${testCountMsg}
+
+          Your network may be preventing you from using Dat.
+          For further troubleshooting, visit https://docs.datproject.org/troubleshooting
+        `))
+        process.exit(1)
       })
     })
   }
 
-  function runPublicPeerTest (opts, cb) {
-    var address = opts.address
-    var name = opts.name || 'test'
-    var port = opts.port || 3282
-
-    var connected = false
-    var dataEcho = false
-
-    if (opts.utp && !opts.tcp) {
-      // Check UTP support for utp only
-      // TODO: discovery swarm fails hard if no server works
-      try {
-        require('utp-native')
-      } catch (err) {
-        log('[error] FAIL - unable to load utp-native, utp connections will not work')
-        return cb()
-      }
+  function runP2P () {
+    if (opts.peerId) {
+      opts.existingTest = true
+      opts.id = opts.peerId
+      return startTasks()
     }
 
-    var sw = swarm({
-      dns: {
-        servers: defaults.dns.server
-      },
-      whitelist: [address],
-      dht: false,
-      hash: false,
-      utp: opts.utp,
-      tcp: opts.tcp
-    })
+    opts.existingTest = false
+    opts.id = crypto.randomBytes(32).toString('hex')
+    startTasks()
 
-    sw.on('error', function () {
-      if (port === 3282) log('[error] Default Dat port did not work (3282), using random port')
-      sw.listen(0)
-    })
-    sw.listen(port)
+    function startTasks () {
+      var runTasks = neatTasks(peerTasks(opts))
+      views.push(runTasks.view)
+      neat.use(runTasks.use)
+      neat.use(function (state, bus) {
+        // initial tasks done
+        bus.once('done', function () {
+          // TODO: Fix, overwriting previous line
+          views.push(function () { return '\n' })
+          bus.render()
 
-    sw.on('listening', function () {
-      sw.join('dat-doctor-public-peer', {announce: false})
-      sw.on('connecting', function (peer) {
-        debug('Trying to connect to doctor, %s:%d', peer.host, peer.port)
-      })
-      sw.on('peer', function (peer) {
-        debug('Discovered doctor, %s:%d', peer.host, peer.port)
-      })
-      sw.on('connection', function (connection) {
-        connected = true
-        debug('Connection established to doctor')
-        connection.setEncoding('utf-8')
-        connection.on('data', function (remote) {
-          dataEcho = true
-          log(`[info] ${name.toUpperCase()} - success!`)
-        })
-        pump(connection, connection, function () {
-          debug('Connection closed')
-          destroy(cb)
+          state.id = opts.id
+          state.existingTest = opts.existingTest
+          peerTest(state, bus, views)
         })
       })
-      debug('Attempting connection to doctor, %s', doctor)
-      setTimeout(function () {
-        if (connected) return
-        log('[error] FAIL - Connection timeout, fail.')
-        destroy(cb)
-      }, 10000)
-      var destroy = thunky(function (cb) {
-        sw.destroy(function () {
-          if (!connected) {
-            log('[error] FAIL - Unable to connect to public server.')
-          }
-          if (!dataEcho) {
-            log('[error] FAIL - Data was not echoed back from public server.')
-          }
-          cb()
-        })
-      })
-    })
+    }
   }
 
-  function startP2PDNS () {
-    var client = dnsDiscovery({
-      servers: defaults.dns.server
-    })
+  function headerOutput (state) {
+    return `Welcome to ${chalk.greenBright('Dat')} Doctor!\n`
+  }
 
-    client.on('error', function (err) {
-      log('[info] dns-discovery emitted ' + err.message)
-    })
+  function menuView (state) {
+    if (!menu) return ''
+    if (state.selected && state.selected.index === 0) return `Running ${state.selected.text}\n`
+    else if (state.selected) {
+      return output(`
+        To start a new Peer-to-Peer test, press ENTER.
+        Otherwise enter test ID.
 
-    var tick = 0
-    var sw = swarm({
-      dns: {
-        servers: defaults.dns.server
-      },
-      dht: false
-    })
+        >
+      `)
+    }
+    return output(`
+      Which tests would you like to run?
+      ${menu.toString()}
+    `)
+  }
 
-    sw.on('error', function () {
-      sw.listen(0)
-    })
-    sw.listen(port)
-    sw.on('listening', function () {
-      client.whoami(function (err, me) {
-        if (err) return log('[error] Could not detect public ip / port')
-        log('[info] Public IP: ' + me.host)
-        log('[info] Your public port was ' + (me.port ? 'consistent' : 'inconsistent') + ' across remote multiple hosts')
-        if (!me.port) log('[error] Looks like you are behind a symmetric nat. Try enabling upnp.')
-        client.destroy()
-        sw.join(id)
-        sw.on('connecting', function (peer) {
-          log('[info] Trying to connect to %s:%d', peer.host, peer.port)
-        })
-        sw.on('peer', function (peer) {
-          debug('Discovered %s:%d', peer.host, peer.port)
-        })
-        sw.on('connection', function (connection, info) {
-          var num = tick++
-          var prefix = '0000'.slice(0, -num.toString().length) + num
+  function versionsOutput (state) {
+    if (!state.versions) return ''
+    var version = state.versions
+    return output(`
+      Software Info:
+        ${os.platform()} ${os.arch()}
+        Node ${version.node}
+        Dat Doctor v${version.doctor}
+        ${datVer()}
+    `) + '\n'
 
-          var data = crypto.randomBytes(16).toString('hex')
-          log('[%s-%s] Connection established to remote peer', prefix, info.type)
-          var buf = ''
-          connection.setEncoding('utf-8')
-          connection.write(data)
-          connection.on('data', function (remote) {
-            buf += remote
-            if (buf.length === data.length) {
-              log('[%s-%s] Remote peer echoed expected data back, success!', prefix, info.type)
-            }
-          })
-          pump(connection, connection, function () {
-            log('[%s-%s] Connected closed', prefix, info.type)
-          })
-        })
+    function datVer () {
+      if (!DAT_PROCESS || !version.dat) return ''
+      return chalk.green(`dat v${version.dat}`)
+    }
+  }
 
-        log('')
-        log('To test p2p connectivity login to another computer and run:')
-        log('')
-        log('  dat doctor ' + id)
-        log('')
-        log('Waiting for incoming connections... (local port: %d)', sw.address().port)
-        log('')
-      })
+  function getVersions (state, bus) {
+    state.versions = {
+      dat: null,
+      doctor: DOCTOR_VER,
+      node: NODE_VER
+    }
+    exec('dat -v', function (err, stdin, stderr) {
+      if (err && err.code === 127) {
+        // Dat not installed/executable
+        state.datInstalled = false
+        return bus.emit('render')
+      }
+      // if (err) return bus.emit('render')
+      // TODO: right now dat -v exits with error code, need to fix
+      state.versions.dat = stderr.toString().split('\n')[0].trim()
+      bus.emit('render')
     })
   }
 }
