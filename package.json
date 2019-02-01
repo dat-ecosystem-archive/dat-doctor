@@ -1,6 +1,6 @@
 {
   "name": "dat-doctor",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Dat network doctor extension",
   "main": "index.js",
   "bin": {
